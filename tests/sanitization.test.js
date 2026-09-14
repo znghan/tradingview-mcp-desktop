@@ -6,9 +6,10 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { safeString, requireFinite } from '../src/connection.js';
 import { setSymbol, setTimeframe, setType, manageIndicator, setVisibleRange } from '../src/core/chart.js';
-import { drawShape } from '../src/core/drawing.js';
+import { drawShape, listDrawings, getProperties, removeOne, clearAll } from '../src/core/drawing.js';
 
 // ── Mock helpers ─────────────────────────────────────────────────────────
 
@@ -284,10 +285,66 @@ describe('drawing.js — sanitized evaluate calls', () => {
   });
 });
 
+// ── drawing.js — DI regression (evaluate must be resolved, not bare) ───────
+// Regression for "evaluate is not defined": after the DI refactor aliased the
+// imports to _evaluate/_getChartApi, listDrawings/getProperties/removeOne/
+// clearAll still called a bare evaluate() that no longer existed in scope.
+
+describe('drawing.js — DI resolves evaluate (regression: "evaluate is not defined")', () => {
+  it('listDrawings uses the injected evaluate and returns shapes', async () => {
+    const { _deps } = mockDeps();
+    _deps.evaluate = async () => [{ id: 'a', name: 'text' }, { id: 'b', name: 'text' }];
+    const r = await listDrawings({ _deps });
+    assert.equal(r.success, true);
+    assert.equal(r.count, 2);
+    assert.deepEqual(r.shapes.map(s => s.id), ['a', 'b']);
+  });
+
+  it('listDrawings tolerates a null evaluate result', async () => {
+    const { _deps } = mockDeps();
+    const r = await listDrawings({ _deps });
+    assert.equal(r.success, true);
+    assert.equal(r.count, 0);
+  });
+
+  it('getProperties uses the injected evaluate and targets the entity id', async () => {
+    const { _deps, evaluate } = mockDeps();
+    _deps.evaluate = async (expr) => { evaluate.calls.push(expr); return { entity_id: 'xyz', name: 'text' }; };
+    const r = await getProperties({ entity_id: 'xyz', _deps });
+    assert.equal(r.success, true);
+    assert.equal(r.entity_id, 'xyz');
+    assert.ok(evaluate.calls.some(c => c.includes('"xyz"')), 'entity id passed via safeString');
+  });
+
+  it('getProperties surfaces a not-found error from evaluate', async () => {
+    const { _deps } = mockDeps();
+    _deps.evaluate = async () => ({ error: 'Shape not found: nope' });
+    await assert.rejects(() => getProperties({ entity_id: 'nope', _deps }), /Shape not found/);
+  });
+
+  it('removeOne uses the injected evaluate and reports removal', async () => {
+    const { _deps, evaluate } = mockDeps();
+    _deps.evaluate = async (expr) => { evaluate.calls.push(expr); return { entity_id: 'gone', removed: true, remaining_shapes: 3 }; };
+    const r = await removeOne({ entity_id: 'gone', _deps });
+    assert.equal(r.success, true);
+    assert.equal(r.removed, true);
+    assert.equal(r.remaining_shapes, 3);
+    assert.ok(evaluate.calls.some(c => c.includes('"gone"')), 'entity id passed via safeString');
+  });
+
+  it('clearAll uses the injected evaluate', async () => {
+    const { _deps, evaluate } = mockDeps();
+    const r = await clearAll({ _deps });
+    assert.equal(r.success, true);
+    assert.equal(r.action, 'all_shapes_removed');
+    assert.ok(evaluate.calls.some(c => c.includes('removeAllShapes')), 'removeAllShapes invoked');
+  });
+});
+
 // ── Source-level audit ───────────────────────────────────────────────────
 
 describe('source audit — no unsafe interpolation patterns', () => {
-  const CORE_DIR = new URL('../src/core/', import.meta.url).pathname;
+  const CORE_DIR = fileURLToPath(new URL('../src/core/', import.meta.url));
   const coreFiles = readdirSync(CORE_DIR).filter(f => f.endsWith('.js'));
 
   for (const file of coreFiles) {

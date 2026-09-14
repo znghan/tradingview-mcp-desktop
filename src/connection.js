@@ -158,6 +158,23 @@ export async function disconnect() {
   }
 }
 
+export async function connectToTarget(targetId) {
+  await disconnect();
+  try {
+    const newClient = await CDP({ host: CDP_HOST, port: CDP_PORT, target: targetId });
+    await newClient.Runtime.enable();
+    await newClient.Page.enable();
+    await newClient.DOM.enable();
+    client = newClient;
+    const resp = await fetch(`http://${CDP_HOST}:${CDP_PORT}/json/list`);
+    const targets = await resp.json();
+    targetInfo = targets.find(t => t.id === targetId) || null;
+    return client;
+  } catch (e) {
+    throw new Error(`Failed to connect to target ${targetId}: ${e.message}`);
+  }
+}
+
 // --- Direct API path helpers ---
 // Each returns the STRING expression path after verifying it exists.
 // Callers use the returned string in their own evaluate() calls.

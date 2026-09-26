@@ -2,7 +2,7 @@
   "mcpServers": {
     "tradingview": {
       "command": "node",
-      "args": ["C:/Users/zngha/Workspace/tradingview-mcp/src/server.js"]
+      "args": ["C:/Users/zngha/Workspace/tradingview-mcp-desktop/src/server.js"]
     }
   }
 }

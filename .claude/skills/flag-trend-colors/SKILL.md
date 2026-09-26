@@ -52,6 +52,19 @@ more expensive and was only used once, before this skill existed).
 - **RED**: close < SMA200 AND EMA8 < EMA21 AND today's close < EMA21 AND yesterday's close < EMA21
 - **PINK**: close < SMA200 but NOT all of the other two RED conditions
 
+## Step 0: Find and switch to the "Stocks Daily" tab
+
+This skill must only run against the **"Stocks Daily"** chart tab — never flag
+based on data read from any other tab.
+
+1. `tab_list` — list open TradingView tabs and find the one named
+   "Stocks Daily".
+2. If found, `tab_switch` to it before doing anything else.
+3. If no tab named "Stocks Daily" exists, **stop and ask the user** — don't
+   guess which tab to use or fall back to whatever tab is currently active.
+4. After switching, confirm with `chart_get_state` that the active tab looks
+   like the expected daily setup (e.g. timeframe is "D") before proceeding.
+
 ## Step 1: For each ticker in the list
 
 1. `chart_set_symbol` — switch to the ticker (this drives which symbol

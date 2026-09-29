@@ -27,6 +27,8 @@ AMEX:XLY
 AMEX:XLF
 AMEX:XLV
 AMEX:XLK
+AMEX:XLP
+AMEX:XLE
 ```
 
 This list was read once from the live watchlist and hardcoded here since the
